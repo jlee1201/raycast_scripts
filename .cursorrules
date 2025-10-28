@@ -1,0 +1,24 @@
+readme: |
+  For Raycast extension work, start by reading `docs/raycast-dev.md`.
+  - Use local extensions (not Script Commands) unless explicitly requested.
+  - Validate manifests with `npx @raycast/api lint` and build with `npx @raycast/api dev`.
+  - Icons must be PNG 512x512 in `assets/icon.png`.
+  - Use JXA for listing tabs and AppleScript for actions.
+
+conventions:
+  - extensions_have:
+      - src/
+      - assets/icon.png
+      - README.md
+      - package.json with root-level Raycast fields
+
+priority_files:
+  - docs/raycast-dev.md
+  - **/package.json
+  - **/src/**/*.tsx
+
+
+
+
+
+

@@ -1,0 +1,41 @@
+{
+  "name": "browser-tab-bulk-close",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Raycast extension to filter and bulk close tabs across Safari, Chrome, Brave, and Edge",
+  "license": "MIT",
+  "type": "module",
+  "schemaVersion": 1,
+  "title": "Bulk Close Browser Tabs",
+  "icon": "icon.png",
+  "categories": ["Productivity"],
+  "author": "jlee1201",
+  "commands": [
+    {
+      "name": "bulk-close-tabs",
+      "title": "Bulk Close Tabs",
+      "subtitle": "Across Browsers",
+      "description": "Search open tabs and close all matches across browsers",
+      "mode": "view"
+    }
+  ],
+  "scripts": {
+    "build": "ray build",
+    "dev": "ray dev"
+  },
+  "dependencies": {
+    "@raycast/api": "^1.82.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.11",
+    "@types/react": "^18.3.3",
+    "react": "^18.2.0",
+    "typescript": "^5.5.4"
+  }
+}
+
+
+
+
+
+

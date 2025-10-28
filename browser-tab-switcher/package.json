@@ -1,0 +1,39 @@
+{
+  "name": "browser-tab-switcher",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Raycast extension to list all open tabs across browsers and switch to a selected tab",
+  "license": "MIT",
+  "type": "module",
+  "schemaVersion": 1,
+  "title": "Browser Tab Switcher",
+  "icon": "icon.png",
+  "categories": [
+    "Productivity"
+  ],
+  "author": "jlee1201",
+  "commands": [
+    {
+      "name": "switch-tab",
+      "title": "Switch to Browser Tab",
+      "subtitle": "Across Browsers",
+      "description": "List open tabs across supported browsers and switch to one",
+      "mode": "view"
+    }
+  ],
+  "scripts": {
+    "build": "ray build",
+    "dev": "ray dev"
+  },
+  "dependencies": {
+    "@raycast/api": "^1.82.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.11",
+    "@types/react": "^18.3.3",
+    "react": "^18.2.0",
+    "typescript": "^5.5.4"
+  }
+}
+
+
