@@ -15,10 +15,14 @@ declare type Preferences = ExtensionPreferences
 declare namespace Preferences {
   /** Preferences accessible in the `bulk-close-tabs` command */
   export type BulkCloseTabs = ExtensionPreferences & {}
+  /** Preferences accessible in the `close-duplicate-tabs` command */
+  export type CloseDuplicateTabs = ExtensionPreferences & {}
 }
 
 declare namespace Arguments {
   /** Arguments passed to the `bulk-close-tabs` command */
   export type BulkCloseTabs = {}
+  /** Arguments passed to the `close-duplicate-tabs` command */
+  export type CloseDuplicateTabs = {}
 }
 

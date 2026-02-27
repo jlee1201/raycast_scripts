@@ -2,7 +2,7 @@
   "name": "browser-tab-bulk-close",
   "version": "0.0.1",
   "private": true,
-  "description": "Raycast extension to filter and bulk close tabs across Safari, Chrome, Brave, and Edge",
+  "description": "Raycast extension to filter, bulk close, and deduplicate tabs across Safari, Chrome, Brave, and Edge",
   "license": "MIT",
   "type": "module",
   "schemaVersion": 1,
@@ -16,6 +16,13 @@
       "title": "Bulk Close Tabs",
       "subtitle": "Across Browsers",
       "description": "Search open tabs and close all matches across browsers",
+      "mode": "view"
+    },
+    {
+      "name": "close-duplicate-tabs",
+      "title": "Close Duplicate Tabs",
+      "subtitle": "Across Browsers",
+      "description": "Find and close duplicate tabs across all browsers (ignores URL hash/anchor differences)",
       "mode": "view"
     }
   ],
@@ -33,6 +40,9 @@
     "typescript": "^5.5.4"
   }
 }
+
+
+
 
 
 
