@@ -1,0 +1,48 @@
+---
+description: Browser automation patterns for Raycast extensions that control browsers
+globs: browser-tab-*/**
+alwaysApply: false
+---
+
+# Browser Automation
+
+## Choosing an approach
+
+| Browser | List tabs | Switch/close tabs |
+|---------|-----------|-------------------|
+| Chromium (Edge, Chrome, Brave) | CDP `GET /json` | CDP `GET /json/activate/{id}` + System Events |
+| Safari | JXA `osascript -l JavaScript` | AppleScript `osascript` with window `id` |
+
+Fall back to JXA for Chromium only when no `--remote-debugging-port` is found in `ps`.
+
+## Why CDP over AppleScript for Chromium
+
+`Application("Microsoft Edge")` / `tell application "Microsoft Edge"` resolve to a **single process** chosen by Launch Services. When multiple instances run (e.g. two Edge profiles with separate user-data-dirs), JXA may enumerate tabs from process A while AppleScript targets process B — causing switches to the wrong window.
+
+CDP avoids this: each instance has its own debug port, so listing and switching are scoped to the correct process.
+
+## CDP patterns
+
+- **Discover instances**: parse `ps -eo pid,args` for `--remote-debugging-port=(\d+)`, skip lines containing `--type=` (those are subprocesses).
+- **List tabs**: `http://localhost:PORT/json`, filter `type === "page"`.
+- **Switch tab**: `http://localhost:PORT/json/activate/TAB_ID`.
+- **Bring to front**: `tell application "System Events" to set frontmost of (first process whose unix id is PID) to true`.
+- Use Node.js `http` module for HTTP calls (no external deps needed).
+
+## AppleScript pitfalls
+
+- **Never use window index for targeting** — indices are z-order based and shift when other apps (like Raycast) come to front. Use `window id` instead: `first window whose id is N`.
+- For bulk closing, close tabs in **descending index** per window to avoid reindexing.
+
+## Adding a new Chromium browser
+
+Any Chromium fork with `--remote-debugging-port` works. Update **both** extensions:
+
+In each of `browser-tab-switcher/src/switch-tab.tsx` and `browser-tab-bulk-close/src/shared.ts`:
+
+1. **`BrowserName` type** — add the new name to the union
+2. **`CHROMIUM_BROWSERS` array** — append the new name
+3. **`discoverChromiumInstances()`** — add an `else if (line.includes("AppName"))` branch matching the process path
+4. **`browserColor()` / `iconForBrowser()`** — add a `case` for the new browser
+
+Build both extensions afterward: `npx @raycast/api build` in each folder.

@@ -2,25 +2,28 @@ import { Action, ActionPanel, Color, Icon, List, Toast, showToast } from "@rayca
 import { useEffect, useState } from "react";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import http from "node:http";
 
 const execFileAsync = promisify(execFile);
 
-type BrowserName = "Safari" | "Google Chrome" | "Brave Browser" | "Microsoft Edge";
+type BrowserName = "Safari" | "Google Chrome" | "Brave Browser" | "Microsoft Edge" | "Thorium";
+
+type CDPSwitch = { kind: "cdp"; port: number; pid: number; tabId: string };
+type AppleScriptSwitch = { kind: "applescript"; windowId: number; tabIndex: number };
+type SwitchMethod = CDPSwitch | AppleScriptSwitch;
 
 type BrowserTab = {
   browser: BrowserName;
-  windowIndex: number;
-  tabIndex: number;
   title: string;
   url: string;
+  switchMethod: SwitchMethod;
 };
 
-const SUPPORTED_BROWSERS: BrowserName[] = ["Safari", "Google Chrome", "Brave Browser", "Microsoft Edge"];
+const SAFARI: BrowserName = "Safari";
+const CHROMIUM_BROWSERS: BrowserName[] = ["Google Chrome", "Brave Browser", "Microsoft Edge", "Thorium"];
 
 function computeHostname(url: string | undefined): string {
-  if (!url) {
-    return "";
-  }
+  if (!url) return "";
   try {
     return new URL(url).hostname || "";
   } catch {
@@ -28,10 +31,107 @@ function computeHostname(url: string | undefined): string {
   }
 }
 
-async function listAllTabs(): Promise<BrowserTab[]> {
+// ---------------------------------------------------------------------------
+// CDP (Chrome DevTools Protocol) – used for Chromium browsers
+// ---------------------------------------------------------------------------
+
+type ChromiumInstance = { browser: BrowserName; pid: number; port: number };
+
+function httpGet(url: string, timeoutMs = 2000): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const req = http.get(url, { timeout: timeoutMs }, (res) => {
+      let data = "";
+      res.on("data", (chunk: string) => (data += chunk));
+      res.on("end", () => resolve(data));
+    });
+    req.on("error", reject);
+    req.on("timeout", () => {
+      req.destroy();
+      reject(new Error("timeout"));
+    });
+  });
+}
+
+async function discoverChromiumInstances(): Promise<ChromiumInstance[]> {
+  try {
+    const { stdout } = await execFileAsync("ps", ["-eo", "pid,args"]);
+    const instances: ChromiumInstance[] = [];
+    const seenPorts = new Set<number>();
+
+    for (const line of stdout.split("\n")) {
+      if (line.includes("--type=")) continue;
+      const portMatch = line.match(/--remote-debugging-port=(\d+)/);
+      if (!portMatch) continue;
+
+      const port = parseInt(portMatch[1], 10);
+      if (seenPorts.has(port)) continue;
+      seenPorts.add(port);
+
+      const pid = parseInt(line.trim().split(/\s+/)[0], 10);
+
+      let browser: BrowserName | null = null;
+      if (line.includes("Microsoft Edge")) browser = "Microsoft Edge";
+      else if (line.includes("Google Chrome")) browser = "Google Chrome";
+      else if (line.includes("Brave Browser")) browser = "Brave Browser";
+      else if (line.includes("Thorium")) browser = "Thorium";
+
+      if (browser) instances.push({ browser, pid, port });
+    }
+    return instances;
+  } catch {
+    return [];
+  }
+}
+
+interface CDPTarget {
+  id: string;
+  title: string;
+  url: string;
+  type: string;
+}
+
+async function listTabsCDP(instance: ChromiumInstance): Promise<BrowserTab[]> {
+  try {
+    const data = await httpGet(`http://localhost:${instance.port}/json`);
+    const targets: CDPTarget[] = JSON.parse(data);
+
+    return targets
+      .filter((t) => t.type === "page")
+      .map((t) => ({
+        browser: instance.browser,
+        title: t.title || "",
+        url: t.url || "",
+        switchMethod: {
+          kind: "cdp" as const,
+          port: instance.port,
+          pid: instance.pid,
+          tabId: t.id,
+        },
+      }));
+  } catch {
+    return [];
+  }
+}
+
+async function switchTabCDP(method: CDPSwitch) {
+  await httpGet(`http://localhost:${method.port}/json/activate/${method.tabId}`);
+
+  const script = `
+tell application "System Events"
+  set frontmost of (first process whose unix id is ${method.pid}) to true
+end tell`;
+  await execFileAsync("/usr/bin/osascript", ["-e", script]);
+}
+
+// ---------------------------------------------------------------------------
+// JXA / AppleScript – used for Safari (and as fallback)
+// ---------------------------------------------------------------------------
+
+async function listTabsJXA(browsers: BrowserName[]): Promise<BrowserTab[]> {
+  if (browsers.length === 0) return [];
+
   const jxa = `
 ObjC.import('stdlib');
-
 function getTabs(appName) {
   try {
     var app = Application(appName);
@@ -46,10 +146,9 @@ function getTabs(appName) {
         var t = tabs[ti];
         var title = isSafari ? t.name() : t.title();
         var url = t.url();
-        // Some tabs (e.g., new tab) may not have URLs
         if (typeof url !== 'string') { url = ''; }
         if (typeof title !== 'string') { title = ''; }
-        result.push({ browser: appName, windowIndex: wi + 1, tabIndex: ti + 1, title: title, url: url });
+        result.push({ browser: appName, windowId: w.id(), tabIndex: ti + 1, title: title, url: url });
       }
     }
     return result;
@@ -57,72 +156,63 @@ function getTabs(appName) {
     return [];
   }
 }
-
-var browsers = ${JSON.stringify(SUPPORTED_BROWSERS)};
+var browsers = ${JSON.stringify(browsers)};
 var all = [];
 for (var i = 0; i < browsers.length; i++) {
-  var b = browsers[i];
-  var tabs = getTabs(b);
+  var tabs = getTabs(browsers[i]);
   for (var j = 0; j < tabs.length; j++) { all.push(tabs[j]); }
 }
 JSON.stringify(all);
 `;
 
   const { stdout } = await execFileAsync("/usr/bin/osascript", ["-l", "JavaScript", "-e", jxa]);
-  const parsed = JSON.parse(stdout.trim() || "[]") as BrowserTab[];
-  return parsed;
+  const parsed = JSON.parse(stdout.trim() || "[]") as Array<{
+    browser: BrowserName;
+    windowId: number;
+    tabIndex: number;
+    title: string;
+    url: string;
+  }>;
+
+  return parsed.map((t) => ({
+    browser: t.browser,
+    title: t.title,
+    url: t.url,
+    switchMethod: { kind: "applescript" as const, windowId: t.windowId, tabIndex: t.tabIndex },
+  }));
 }
 
-async function focusAndSwitchToTab(browser: BrowserName, windowIndex: number, tabIndex: number) {
+async function switchTabAppleScript(browser: BrowserName, method: AppleScriptSwitch) {
   const isSafari = browser === "Safari";
-  
-  // Robust script with proper syntax and timing
+
   const script = `
 tell application "${browser}"
-  -- Store initial state
   set wasAlreadyFrontmost to frontmost
   set targetWindowVisible to false
-  
+
   try
-    -- Check if the target window is already visible (same space)
-    if (count of windows) >= ${windowIndex} then
-      set targetWindowVisible to visible of window ${windowIndex}
-    end if
+    set targetWindow to (first window whose id is ${method.windowId})
+    set targetWindowVisible to visible of targetWindow
   end try
-  
-  -- Activate the browser
+
   activate
-  
-  -- Wait for browser to become frontmost
+
   repeat 20 times
     if frontmost then exit repeat
     delay 0.05
   end repeat
-  
+
   try
-    if (count of windows) is 0 then
-      return
-    end if
-    
-    -- Bring window to front
-    set index of window ${windowIndex} to 1
-    
-    -- Smart delay based on whether we're likely switching spaces
+    set targetWindow to (first window whose id is ${method.windowId})
+    set index of targetWindow to 1
+
     if targetWindowVisible and wasAlreadyFrontmost then
-      -- Same space, minimal delay
       delay 0.1
     else
-      -- Cross-space switch detected
-      -- Ensure the window is visible
       set visible of window 1 to true
-      
-      -- Wait for space animation to complete
       delay 0.6
-      
-      -- Additional wait to ensure window is ready
       repeat 10 times
         try
-          -- Try to access window properties to confirm it's ready
           set windowName to name of window 1
           exit repeat
         on error
@@ -130,26 +220,25 @@ tell application "${browser}"
         end try
       end repeat
     end if
-    
-    -- Now switch to the tab with retries
+
     set tabSwitched to false
     repeat 3 times
       try
-        ${isSafari ? `set current tab of window 1 to tab ${tabIndex} of window 1` : `set active tab index of window 1 to ${tabIndex}`}
+        ${isSafari ? `set current tab of window 1 to tab ${method.tabIndex} of window 1` : `set active tab index of window 1 to ${method.tabIndex}`}
         set tabSwitched to true
         exit repeat
       on error
-        -- If it fails, try bringing window to front again
         activate
-        set index of window 1 to 1
+        set targetWindow to (first window whose id is ${method.windowId})
+        set index of targetWindow to 1
         delay 0.2
       end try
     end repeat
-    
+
     if not tabSwitched then
       error "Failed to switch to tab after multiple attempts"
     end if
-    
+
   on error errMsg
     error errMsg
   end try
@@ -158,23 +247,69 @@ end tell`;
   await execFileAsync("/usr/bin/osascript", ["-e", script]);
 }
 
+// ---------------------------------------------------------------------------
+// Orchestration
+// ---------------------------------------------------------------------------
+
+async function listAllTabs(): Promise<BrowserTab[]> {
+  const all: BrowserTab[] = [];
+
+  const chromiumInstances = await discoverChromiumInstances();
+  const browsersWithCDP = new Set(chromiumInstances.map((i) => i.browser));
+
+  const cdpResults = await Promise.all(chromiumInstances.map(listTabsCDP));
+  for (const tabs of cdpResults) all.push(...tabs);
+
+  const jxaBrowsers: BrowserName[] = [SAFARI];
+  for (const b of CHROMIUM_BROWSERS) {
+    if (!browsersWithCDP.has(b)) jxaBrowsers.push(b);
+  }
+  const jxaTabs = await listTabsJXA(jxaBrowsers);
+  all.push(...jxaTabs);
+
+  return all;
+}
+
+async function focusAndSwitchToTab(tab: BrowserTab) {
+  const m = tab.switchMethod;
+  if (m.kind === "cdp") {
+    await switchTabCDP(m);
+  } else {
+    await switchTabAppleScript(tab.browser, m);
+  }
+}
+
+function tabKey(tab: BrowserTab): string {
+  const m = tab.switchMethod;
+  if (m.kind === "cdp") return `cdp-${m.port}-${m.tabId}`;
+  return `as-${tab.browser}-${m.windowId}-${m.tabIndex}`;
+}
+
+// ---------------------------------------------------------------------------
+// UI
+// ---------------------------------------------------------------------------
+
 export default function Command() {
   const [tabs, setTabs] = useState<BrowserTab[] | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  const loadTabs = async () => {
+    setIsLoading(true);
+    try {
+      const all = await listAllTabs();
+      all.sort((a, b) =>
+        a.browser === b.browser ? a.title.localeCompare(b.title) : a.browser.localeCompare(b.browser),
+      );
+      setTabs(all);
+    } catch (e) {
+      await showToast({ style: Toast.Style.Failure, title: "Failed to list tabs", message: String(e) });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
-    (async () => {
-      try {
-        const all = await listAllTabs();
-        // Sort by browser then title for stability
-        all.sort((a, b) => (a.browser === b.browser ? a.title.localeCompare(b.title) : a.browser.localeCompare(b.browser)));
-        setTabs(all);
-      } catch (e) {
-        await showToast({ style: Toast.Style.Failure, title: "Failed to list tabs", message: String(e) });
-      } finally {
-        setIsLoading(false);
-      }
-    })();
+    loadTabs();
   }, []);
 
   return (
@@ -182,34 +317,27 @@ export default function Command() {
       {tabs?.map((t) => {
         const subtitle = t.url || "";
         const hostname = computeHostname(subtitle);
-        
-        // Build keywords array - include URL, hostname, and parts of the URL
+
         const keywords: string[] = [];
         if (subtitle) {
-          keywords.push(subtitle); // Full URL
-          if (hostname) {
-            keywords.push(hostname); // Just hostname
-          }
-          // Add path segments as keywords
+          keywords.push(subtitle);
+          if (hostname) keywords.push(hostname);
           try {
             const url = new URL(subtitle);
-            const pathSegments = url.pathname.split('/').filter(s => s.length > 0);
+            const pathSegments = url.pathname.split("/").filter((s) => s.length > 0);
             keywords.push(...pathSegments);
           } catch {
-            // Invalid URL, skip path parsing
+            // skip
           }
         }
-        
-        // WORKAROUND: Raycast's keywords don't support partial matching well
-        // So we'll append hostname to the title for searchability
+
         const displayTitle = t.title || subtitle || "Untitled";
-        const searchableTitle = hostname && !displayTitle.includes(hostname) 
-          ? `${displayTitle} - ${hostname}`
-          : displayTitle;
-        
+        const searchableTitle =
+          hostname && !displayTitle.includes(hostname) ? `${displayTitle} - ${hostname}` : displayTitle;
+
         return (
           <List.Item
-            key={`${t.browser}-${t.windowIndex}-${t.tabIndex}-${t.url}`}
+            key={tabKey(t)}
             title={searchableTitle}
             subtitle={subtitle}
             keywords={keywords}
@@ -222,27 +350,14 @@ export default function Command() {
                   icon={Icon.Switch}
                   onAction={async () => {
                     try {
-                      await focusAndSwitchToTab(t.browser, t.windowIndex, t.tabIndex);
+                      await focusAndSwitchToTab(t);
                       await showToast({ style: Toast.Style.Success, title: `Switched: ${t.browser}` });
                     } catch (e) {
                       await showToast({ style: Toast.Style.Failure, title: "Failed to switch", message: String(e) });
                     }
                   }}
                 />
-                <Action
-                  title="Refresh Tabs"
-                  icon={Icon.Repeat}
-                  onAction={async () => {
-                    setIsLoading(true);
-                    try {
-                      const all = await listAllTabs();
-                      all.sort((a, b) => (a.browser === b.browser ? a.title.localeCompare(b.title) : a.browser.localeCompare(b.browser)));
-                      setTabs(all);
-                    } finally {
-                      setIsLoading(false);
-                    }
-                  }}
-                />
+                <Action title="Refresh Tabs" icon={Icon.Repeat} onAction={loadTabs} />
               </ActionPanel>
             }
           />
@@ -262,6 +377,8 @@ function browserColor(browser: BrowserName): Color.ColorLike {
       return Color.Orange;
     case "Microsoft Edge":
       return Color.Green;
+    case "Thorium":
+      return Color.Purple;
   }
 }
 
@@ -275,7 +392,7 @@ function iconForBrowser(browser: BrowserName) {
       return Icon.Shield;
     case "Microsoft Edge":
       return Icon.Globe;
+    case "Thorium":
+      return Icon.Bolt;
   }
 }
-
-

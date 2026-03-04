@@ -24,3 +24,6 @@ file "$out" | sed 's/^/Generated icon: /'
 
 
 
+
+
+

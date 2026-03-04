@@ -1,6 +1,6 @@
 import { Action, ActionPanel, Color, Icon, List, Toast, confirmAlert, showToast } from "@raycast/api";
 import { useEffect, useMemo, useState } from "react";
-import { BrowserTab, browserColor, canonicalUrl, closeTabs, computeHostname, iconForBrowser, listAllTabs, normalizeTitle } from "./shared";
+import { BrowserTab, browserColor, canonicalUrl, closeTabs, computeHostname, iconForBrowser, listAllTabs, normalizeTitle, tabKey } from "./shared";
 
 type DuplicateGroup = {
   canonical: string;
@@ -116,7 +116,7 @@ export default function Command() {
           >
             {/* The tab we'll keep */}
             <List.Item
-              key={`keep-${group.keep.browser}-${group.keep.windowIndex}-${group.keep.tabIndex}`}
+              key={`keep-${tabKey(group.keep)}`}
               title={group.keep.title || group.keep.url || "Untitled"}
               subtitle={group.keep.url}
               accessories={[
@@ -144,7 +144,7 @@ export default function Command() {
             {/* Duplicate tabs that will be closed */}
             {group.duplicates.map((t) => (
               <List.Item
-                key={`dup-${t.browser}-${t.windowIndex}-${t.tabIndex}`}
+                key={`dup-${tabKey(t)}`}
                 title={t.title || t.url || "Untitled"}
                 subtitle={t.url}
                 accessories={[

@@ -80,11 +80,27 @@ Notes:
 
 When controlling browsers, approve prompts: System Settings → Privacy & Security → Automation → Allow Raycast to control Safari/Chrome/Brave/Edge.
 
-### JXA/AppleScript patterns
+### Browser automation strategies
+
+Two approaches exist for controlling browsers from Raycast extensions:
+
+**Chrome DevTools Protocol (CDP)** — preferred for Chromium browsers (Chrome, Edge, Brave, Thorium, and other forks):
+
+- Discover running instances by parsing `ps -eo pid,args` for `--remote-debugging-port=NNNN` (skip lines with `--type=`).
+- List tabs: HTTP GET `http://localhost:PORT/json`, filter by `type === "page"`.
+- Switch tabs: HTTP GET `http://localhost:PORT/json/activate/TAB_ID`, then bring process to front via System Events with the PID.
+- Handles multiple browser instances (e.g. separate Edge profiles) correctly because each instance has its own debug port.
+- Limitation: discarded/unloaded tabs may not appear in CDP listings.
+
+**JXA / AppleScript** — used for Safari (and as fallback when no CDP port is available):
 
 - Enumerate tabs using JXA via `osascript -l JavaScript` and return JSON.
-- Switch/focus or close tabs using AppleScript strings executed via `osascript`.
+- Switch/focus tabs using AppleScript via `osascript`. Use window `id` (not window index) to target windows — indices are z-order based and shift when other apps come to front.
 - For bulk closing, close tabs in descending index per window to avoid reindexing.
+
+**Why not AppleScript for Chromium?** `Application("Microsoft Edge")` / `tell application "Microsoft Edge"` resolve to a single process chosen by Launch Services. When multiple instances run (e.g. two Edge profiles), JXA may list tabs from one process while AppleScript targets the other, causing switches to the wrong window or no-ops.
+
+Adding a new Chromium browser requires updating both extensions — see `.cursor/rules/browser-automation.mdc` for the checklist.
 
 ### Repo conventions
 
@@ -105,6 +121,9 @@ When controlling browsers, approve prompts: System Settings → Privacy & Securi
 - Icon is valid PNG 512×512 RGBA?
 - Logged into Raycast and Developer Mode enabled?
 - Built with `ray dev` after changes?
+
+
+
 
 
 

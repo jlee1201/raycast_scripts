@@ -56,7 +56,7 @@ export default function Command() {
 
           return (
             <List.Item
-              key={`${t.browser}-${t.windowIndex}-${t.tabIndex}-${t.url}`}
+              key={tabKey(t)}
               title={searchableTitle}
               subtitle={t.url}
               accessories={accessories}

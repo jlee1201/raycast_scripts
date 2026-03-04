@@ -1,18 +1,28 @@
 ## Browser Tab Switcher (Raycast Extension)
 
-List all open tabs across Safari, Google Chrome, Brave, and Microsoft Edge. Pick one to bring that browser to the foreground and switch to the selected tab.
+List all open tabs across Safari and Chromium-based browsers. Pick one to bring that browser to the foreground and switch to the selected tab.
 
 ### Features
 
-- **Cross-browser tab listing**: Safari, Google Chrome, Brave Browser, Microsoft Edge
+- **Cross-browser tab listing**: Safari, Google Chrome, Brave Browser, Microsoft Edge, Thorium
 - **Instant switching**: Focuses the browser and selects the tab
 - **Searchable**: Filter by tab title and URL (hostname is appended to title for better search matching)
+- **Multi-instance support**: Correctly handles multiple instances of the same Chromium browser (e.g. separate Edge profiles)
 
 ### How it works
 
-- Uses **JXA (JavaScript for Automation)** via `osascript -l JavaScript` to enumerate windows/tabs and return JSON.
-- Uses **AppleScript** via `osascript` to bring the app to the foreground and switch the active tab.
-- UI built with **Raycast API** (`@raycast/api`) in **TypeScript/React**.
+**Chromium browsers** (Chrome, Edge, Brave) use the Chrome DevTools Protocol (CDP):
+
+- Discovers running instances by scanning process arguments for `--remote-debugging-port`.
+- Lists tabs via HTTP (`/json` endpoint) on each instance's debug port.
+- Switches tabs via the `/json/activate/` endpoint, then brings the correct process to the macOS foreground using System Events.
+
+**Safari** uses JXA/AppleScript:
+
+- Enumerates tabs via JXA (`osascript -l JavaScript`).
+- Switches tabs via AppleScript, targeting windows by stable window ID.
+
+If a Chromium browser has no debug port available, it falls back to the JXA/AppleScript approach.
 
 ### Setup
 
@@ -31,22 +41,20 @@ List all open tabs across Safari, Google Chrome, Brave, and Microsoft Edge. Pick
 - Google Chrome
 - Brave Browser
 - Microsoft Edge
+- Thorium
 
-You can add more Chromium-based browsers by extending the `SUPPORTED_BROWSERS` array in `src/switch-tab.tsx`.
+Any Chromium fork that exposes `--remote-debugging-port` can be added (see `.cursor/rules/browser-automation.mdc` for the checklist).
 
 ### Limitations
 
 - Private/incognito windows may be hidden from scripting depending on browser settings.
 - Some tabs (new tab pages) may not have URLs; they will display as "Untitled".
-- Window and tab indices can change between the list and switch actions if tabs move; in practice this is rare and the command is fast enough to minimize drift.
+- Discarded/unloaded Chromium tabs may not appear in CDP listings (only affects tabs that haven't been accessed in a while).
 
 ### Tech Stack
 
 - **Raycast API**: UI framework
 - **TypeScript + React**: command implementation
-- **JXA + AppleScript**: macOS automation for browsers
-
-
-
-
-
+- **Chrome DevTools Protocol**: tab listing and switching for Chromium browsers
+- **JXA + AppleScript**: macOS automation for Safari
+- **Node.js `http` module**: CDP HTTP communication
