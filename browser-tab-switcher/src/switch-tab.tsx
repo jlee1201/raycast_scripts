@@ -1,4 +1,4 @@
-import { Action, ActionPanel, Color, Icon, List, Toast, showToast } from "@raycast/api";
+import { Action, ActionPanel, closeMainWindow, Color, Icon, List, Toast, showToast } from "@raycast/api";
 import { useEffect, useState } from "react";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
@@ -350,8 +350,8 @@ export default function Command() {
                   icon={Icon.Switch}
                   onAction={async () => {
                     try {
+                      await closeMainWindow();
                       await focusAndSwitchToTab(t);
-                      await showToast({ style: Toast.Style.Success, title: `Switched: ${t.browser}` });
                     } catch (e) {
                       await showToast({ style: Toast.Style.Failure, title: "Failed to switch", message: String(e) });
                     }
