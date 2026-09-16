@@ -251,21 +251,50 @@ end tell`;
 // Orchestration
 // ---------------------------------------------------------------------------
 
+function canonicalUrl(url: string): string {
+  try {
+    const parsed = new URL(url);
+    parsed.hash = "";
+    return parsed.toString();
+  } catch {
+    return url;
+  }
+}
+
+function normalizeTitle(title: string): string {
+  return title
+    .replace(/\([\d,]+\)/g, "")
+    .replace(/\s{2,}/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+function dedupeKey(t: BrowserTab): string {
+  return `${t.browser}\0${canonicalUrl(t.url)}\0${normalizeTitle(t.title)}`;
+}
+
 async function listAllTabs(): Promise<BrowserTab[]> {
   const all: BrowserTab[] = [];
 
   const chromiumInstances = await discoverChromiumInstances();
-  const browsersWithCDP = new Set(chromiumInstances.map((i) => i.browser));
 
   const cdpResults = await Promise.all(chromiumInstances.map(listTabsCDP));
   for (const tabs of cdpResults) all.push(...tabs);
 
-  const jxaBrowsers: BrowserName[] = [SAFARI];
-  for (const b of CHROMIUM_BROWSERS) {
-    if (!browsersWithCDP.has(b)) jxaBrowsers.push(b);
-  }
+  // Always also check AppleScript/JXA, even for browsers with a CDP instance:
+  // a browser can have windows running outside the CDP-flagged instance (e.g.
+  // a different profile, or a window launched without --remote-debugging-port),
+  // and those tabs would otherwise be invisible. Dedupe against CDP results.
+  const jxaBrowsers: BrowserName[] = [SAFARI, ...CHROMIUM_BROWSERS];
   const jxaTabs = await listTabsJXA(jxaBrowsers);
-  all.push(...jxaTabs);
+
+  const seen = new Set(all.map(dedupeKey));
+  for (const t of jxaTabs) {
+    const key = dedupeKey(t);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    all.push(t);
+  }
 
   return all;
 }
@@ -350,8 +379,11 @@ export default function Command() {
                   icon={Icon.Switch}
                   onAction={async () => {
                     try {
-                      await closeMainWindow();
+                      // Switch first, close the Raycast window last: Raycast can tear this
+                      // process down shortly after closeMainWindow() resolves, so anything
+                      // placed after it risks never running.
                       await focusAndSwitchToTab(t);
+                      await closeMainWindow();
                     } catch (e) {
                       await showToast({ style: Toast.Style.Failure, title: "Failed to switch", message: String(e) });
                     }

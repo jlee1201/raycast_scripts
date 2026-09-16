@@ -1,0 +1,42 @@
+{
+  "name": "claude-session-search",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Search all Claude Code sessions on disk and reopen one in Claude Desktop",
+  "license": "MIT",
+  "type": "module",
+  "schemaVersion": 1,
+  "title": "Claude Code Session Search",
+  "icon": "icon.png",
+  "categories": [
+    "Productivity",
+    "Developer Tools"
+  ],
+  "author": "jlee1201",
+  "commands": [
+    {
+      "name": "search-sessions",
+      "title": "Search Claude Code Sessions",
+      "subtitle": "Claude Desktop",
+      "description": "Fuzzy-search every Claude Code session on disk and reopen it in Claude Desktop",
+      "mode": "view"
+    }
+  ],
+  "scripts": {
+    "build": "ray build",
+    "dev": "ray dev",
+    "lint": "ray lint"
+  },
+  "dependencies": {
+    "@raycast/api": "^1.82.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.11",
+    "@types/react": "19.0.10",
+    "react": "^18.2.0",
+    "typescript": "^5.5.4"
+  },
+  "overrides": {
+    "@types/react": "19.0.10"
+  }
+}
