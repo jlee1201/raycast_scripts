@@ -31,7 +31,7 @@ If a Chromium browser has no debug port available, it falls back to the JXA/Appl
 
 ### Usage
 
-1. Invoke the command: "Switch to Browser Tab".
+1. Invoke the command: "Switch to Browser Tab". For browser-scoped lists use "Switch to Edge Tab" or "Switch to Chrome Tab" (assign Raycast aliases such as `e` and `ch`).
 2. Search for a tab by title or URL (e.g., "perplex" will match perplexity.ai tabs).
 3. Press Enter on a result to focus its browser and switch to that tab.
 

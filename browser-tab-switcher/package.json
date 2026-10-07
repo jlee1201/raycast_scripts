@@ -19,6 +19,20 @@
       "subtitle": "Across Browsers",
       "description": "List open tabs across supported browsers and switch to one",
       "mode": "view"
+    },
+    {
+      "name": "switch-tab-edge",
+      "title": "Switch to Edge Tab",
+      "subtitle": "Microsoft Edge",
+      "description": "List open tabs in any Microsoft Edge instance and switch to one",
+      "mode": "view"
+    },
+    {
+      "name": "switch-tab-chrome",
+      "title": "Switch to Chrome Tab",
+      "subtitle": "Google Chrome",
+      "description": "List open tabs in any Google Chrome instance and switch to one",
+      "mode": "view"
     }
   ],
   "scripts": {
