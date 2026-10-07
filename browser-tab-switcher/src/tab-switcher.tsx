@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import http from "node:http";
+import type { Launcher } from "./launchers";
 
 const execFileAsync = promisify(execFile);
 
@@ -319,10 +320,11 @@ function tabKey(tab: BrowserTab): string {
 // UI
 // ---------------------------------------------------------------------------
 
-export default function TabSwitcher({ browsers }: { browsers?: BrowserName[] }) {
+export default function TabSwitcher({ browsers, launcher }: { browsers?: BrowserName[]; launcher?: Launcher }) {
   const scope = browsers?.join(" / ") ?? "browsers";
   const [tabs, setTabs] = useState<BrowserTab[] | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [searchText, setSearchText] = useState("");
 
   const loadTabs = async () => {
     setIsLoading(true);
@@ -344,8 +346,35 @@ export default function TabSwitcher({ browsers }: { browsers?: BrowserName[] }) 
   }, []);
 
   return (
-    <List isLoading={isLoading} searchBarPlaceholder={`Search tabs across ${scope}…`}>
+    <List
+      isLoading={isLoading}
+      searchBarPlaceholder={`Search tabs across ${scope}…`}
+      onSearchTextChange={setSearchText}
+    >
       <List.EmptyView title={isLoading ? "Loading tabs…" : `No ${scope} tabs found`} />
+      {launcher && !searchText && (
+        <List.Item
+          key="launcher"
+          title={launcher.title}
+          icon={Icon.Rocket}
+          actions={
+            <ActionPanel>
+              <Action
+                title={launcher.title}
+                icon={Icon.Rocket}
+                onAction={async () => {
+                  try {
+                    await launcher.run();
+                    await closeMainWindow();
+                  } catch (e) {
+                    await showToast({ style: Toast.Style.Failure, title: "Failed to launch", message: String(e) });
+                  }
+                }}
+              />
+            </ActionPanel>
+          }
+        />
+      )}
       {tabs?.map((t) => {
         const subtitle = t.url || "";
         const hostname = computeHostname(subtitle);
