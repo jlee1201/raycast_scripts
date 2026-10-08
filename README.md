@@ -1,6 +1,6 @@
 ## Raycast Scripts & Extensions
 
-Local Raycast extensions for personal automation. See `docs/raycast-dev.md` for the development playbook.
+Local Raycast extensions for personal automation. See `docs/raycast-dev.md` for the development playbook and `docs/ship-sop.md` for the change-shipping SOP.
 
 ### Extensions
 
