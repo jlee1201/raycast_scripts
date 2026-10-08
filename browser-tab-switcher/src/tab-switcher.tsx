@@ -324,7 +324,6 @@ export default function TabSwitcher({ browsers, launcher }: { browsers?: Browser
   const scope = browsers?.join(" / ") ?? "browsers";
   const [tabs, setTabs] = useState<BrowserTab[] | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [searchText, setSearchText] = useState("");
 
   const loadTabs = async () => {
     setIsLoading(true);
@@ -349,10 +348,9 @@ export default function TabSwitcher({ browsers, launcher }: { browsers?: Browser
     <List
       isLoading={isLoading}
       searchBarPlaceholder={`Search tabs across ${scope}…`}
-      onSearchTextChange={setSearchText}
     >
       <List.EmptyView title={isLoading ? "Loading tabs…" : `No ${scope} tabs found`} />
-      {launcher && !searchText && (
+      {launcher && (
         <List.Item
           key="launcher"
           title={launcher.title}
