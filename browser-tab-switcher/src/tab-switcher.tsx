@@ -7,13 +7,13 @@ import type { Launcher } from "./launchers";
 
 const execFileAsync = promisify(execFile);
 
-type BrowserName = "Safari" | "Google Chrome" | "Brave Browser" | "Microsoft Edge" | "Thorium";
+export type BrowserName = "Safari" | "Google Chrome" | "Brave Browser" | "Microsoft Edge" | "Thorium";
 
 type CDPSwitch = { kind: "cdp"; port: number; pid: number; tabId: string };
 type AppleScriptSwitch = { kind: "applescript"; windowId: number; tabIndex: number };
 type SwitchMethod = CDPSwitch | AppleScriptSwitch;
 
-type BrowserTab = {
+export type BrowserTab = {
   browser: BrowserName;
   title: string;
   url: string;
@@ -23,7 +23,7 @@ type BrowserTab = {
 const SAFARI: BrowserName = "Safari";
 const CHROMIUM_BROWSERS: BrowserName[] = ["Google Chrome", "Brave Browser", "Microsoft Edge", "Thorium"];
 
-function computeHostname(url: string | undefined): string {
+export function computeHostname(url: string | undefined): string {
   if (!url) return "";
   try {
     return new URL(url).hostname || "";
@@ -53,7 +53,7 @@ function httpGet(url: string, timeoutMs = 2000): Promise<string> {
   });
 }
 
-async function discoverChromiumInstances(): Promise<ChromiumInstance[]> {
+export async function discoverChromiumInstances(): Promise<ChromiumInstance[]> {
   try {
     const { stdout } = await execFileAsync("ps", ["-eo", "pid,args"]);
     const instances: ChromiumInstance[] = [];
@@ -252,7 +252,7 @@ end tell`;
 // Orchestration
 // ---------------------------------------------------------------------------
 
-function canonicalUrl(url: string): string {
+export function canonicalUrl(url: string): string {
   try {
     const parsed = new URL(url);
     parsed.hash = "";
@@ -262,7 +262,7 @@ function canonicalUrl(url: string): string {
   }
 }
 
-function normalizeTitle(title: string): string {
+export function normalizeTitle(title: string): string {
   return title
     .replace(/\([\d,]+\)/g, "")
     .replace(/\s{2,}/g, " ")
@@ -270,11 +270,11 @@ function normalizeTitle(title: string): string {
     .toLowerCase();
 }
 
-function dedupeKey(t: BrowserTab): string {
+export function dedupeKey(t: BrowserTab): string {
   return `${t.browser}\0${canonicalUrl(t.url)}\0${normalizeTitle(t.title)}`;
 }
 
-async function listAllTabs(only?: BrowserName[]): Promise<BrowserTab[]> {
+export async function listAllTabs(only?: BrowserName[]): Promise<BrowserTab[]> {
   const all: BrowserTab[] = [];
   const wanted = (b: BrowserName) => !only || only.includes(b);
 

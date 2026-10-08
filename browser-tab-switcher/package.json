@@ -37,7 +37,8 @@
   ],
   "scripts": {
     "build": "ray build",
-    "dev": "ray dev"
+    "dev": "ray dev",
+    "test": "vitest run"
   },
   "dependencies": {
     "@raycast/api": "^1.82.0"
@@ -45,9 +46,10 @@
   "devDependencies": {
     "@types/node": "^20.14.11",
     "@types/react": "^18.3.3",
+    "@types/react-test-renderer": "^18.3.1",
     "react": "^18.2.0",
-    "typescript": "^5.5.4"
+    "react-test-renderer": "^18.3.1",
+    "typescript": "^5.5.4",
+    "vitest": "^3.2.7"
   }
 }
-
-
