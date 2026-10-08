@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const state = vi.hoisted(() => ({
   calls: [] as { cmd: string; args: string[] }[],
@@ -18,8 +18,8 @@ import { CHROME_LAUNCHER, EDGE_LAUNCHER } from "./launchers";
 beforeEach(() => {
   state.calls = [];
   state.scriptExists = true;
-  vi.unstubAllGlobals();
 });
+afterEach(() => vi.unstubAllGlobals());
 
 describe("EDGE_LAUNCHER", () => {
   it("runs the edge-work-open.sh script when present", async () => {
