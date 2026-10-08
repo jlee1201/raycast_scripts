@@ -1,7 +1,7 @@
 import { EventEmitter } from "node:events";
 import React from "react";
 import TestRenderer, { act } from "react-test-renderer";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const state = vi.hoisted(() => ({
   execCalls: [] as { cmd: string; args: string[] }[],
@@ -138,12 +138,18 @@ describe("listAllTabs", () => {
 });
 
 describe("<TabSwitcher /> rendering", () => {
+  const mounted: TestRenderer.ReactTestRenderer[] = [];
+  afterEach(() => {
+    mounted.splice(0).forEach((r) => act(() => r.unmount()));
+  });
+
   async function render(props: React.ComponentProps<typeof TabSwitcher> = {}) {
     let r!: TestRenderer.ReactTestRenderer;
     await act(async () => {
       r = TestRenderer.create(<TabSwitcher {...props} />);
       await new Promise((res) => setTimeout(res, 20));
     });
+    mounted.push(r);
     return r.root;
   }
   const listOf = (root: TestRenderer.ReactTestInstance) =>
@@ -153,13 +159,10 @@ describe("<TabSwitcher /> rendering", () => {
 
   // Regression: passing onSearchTextChange without `filtering` makes Raycast stop filtering,
   // so typing in the search bar no longer narrowed the tab list.
-  it("keeps Raycast's built-in search filtering enabled", () => {
-    return render().then((root) => {
-      const props = listOf(root).props;
-      const customFiltering = props.onSearchTextChange !== undefined;
-      expect(customFiltering ? props.filtering === true : true).toBe(true);
-      expect(props.filtering).not.toBe(false);
-    });
+  it("keeps Raycast's built-in search filtering enabled", async () => {
+    const props = listOf(await render()).props;
+    if (props.onSearchTextChange !== undefined) expect(props.filtering).toBe(true);
+    expect(props.filtering).not.toBe(false);
   });
 
   it("renders one item per tab with browser tag and URL-derived keywords", async () => {
