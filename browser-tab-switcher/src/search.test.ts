@@ -105,6 +105,21 @@ describe("highlightMarkdown", () => {
     expect(highlightMarkdown("a`b", [[0, 3]])).toBe("`a'b`");
   });
 
+  // Raycast auto-links anything URL-shaped and then shows our markup literally inside the link.
+  it("defuses URL auto-linking so highlights render as formatting, not as raw backticks", () => {
+    const url = "https://www.flourish.fait/h/";
+    const md = highlightMarkdown(url, [[12, 25]]);
+    expect(md).toContain("`flourish.fait`");
+    expect(md).not.toContain("://");
+    expect(md).not.toMatch(/www\\?\./i);
+  });
+
+  it("defuses auto-linking in unhighlighted text too", () => {
+    const md = highlightMarkdown("see https://a.example and www.b.example", []);
+    expect(md).not.toContain("://");
+    expect(md).not.toMatch(/www\\?\./i);
+  });
+
   it("handles a match that touches the start and end", () => {
     expect(highlightMarkdown("abc", [[0, 3]])).toBe("`abc`");
   });

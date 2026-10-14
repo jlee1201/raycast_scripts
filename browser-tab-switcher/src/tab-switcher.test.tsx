@@ -197,7 +197,9 @@ describe("<TabSwitcher /> rendering", () => {
 
     await type(root, "notion");
     expect(listOf(root).props.isShowingDetail).toBe(true);
-    expect(items(root)[0].props.detail.props.markdown).toContain("https://www\\.`notion`\\.so/home");
+    const markdown: string = items(root)[0].props.detail.props.markdown;
+    expect(markdown).toContain("`notion`");
+    expect(markdown).not.toContain("://");
   });
 
   it("filters the launcher item by its title like any other item", async () => {
