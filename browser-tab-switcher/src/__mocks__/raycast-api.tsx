@@ -7,7 +7,7 @@ const passthrough = (name: string) => {
 };
 
 export const List = Object.assign(passthrough("List"), {
-  Item: passthrough("List.Item"),
+  Item: Object.assign(passthrough("List.Item"), { Detail: passthrough("List.Item.Detail") }),
   EmptyView: passthrough("List.EmptyView"),
 });
 export const ActionPanel = passthrough("ActionPanel");
