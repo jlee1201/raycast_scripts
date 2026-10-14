@@ -1,9 +1,10 @@
 import { Action, ActionPanel, closeMainWindow, Color, Icon, List, Toast, showToast } from "@raycast/api";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import http from "node:http";
 import type { Launcher } from "./launchers";
+import { highlightMarkdown, rankItems, searchItem } from "./search";
 
 const execFileAsync = promisify(execFile);
 
@@ -324,6 +325,7 @@ export default function TabSwitcher({ browsers, launcher }: { browsers?: Browser
   const scope = browsers?.join(" / ") ?? "browsers";
   const [tabs, setTabs] = useState<BrowserTab[] | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [searchText, setSearchText] = useState("");
 
   const loadTabs = async () => {
     setIsLoading(true);
@@ -344,87 +346,112 @@ export default function TabSwitcher({ browsers, launcher }: { browsers?: Browser
     loadTabs();
   }, []);
 
+  const isSearching = searchText.trim() !== "";
+
+  // Raycast's built-in filter is fuzzy and can't tell "notion" from "NotificatiON": we rank
+  // literal matches first and keep the match ranges so the detail pane can show what matched.
+  const ranked = useMemo(
+    () =>
+      rankItems(
+        searchText,
+        tabs ?? [],
+        (t) => t.title || t.url || "Untitled",
+        (t) => t.url,
+      ),
+    [searchText, tabs],
+  );
+  const launcherResult = launcher ? searchItem(searchText, launcher.title, "") : null;
+  // Launcher sorts like a tab; ties go to the launcher so it stays first when not searching.
+  const firstWeaker = launcherResult ? ranked.findIndex((r) => r.result.score <= launcherResult.score) : -1;
+  const launcherIndex = firstWeaker === -1 ? ranked.length : firstWeaker;
+
+  const launcherItem =
+    launcher && launcherResult ? (
+      <List.Item
+        key="launcher"
+        title={launcher.title}
+        icon={Icon.Rocket}
+        detail={
+          isSearching ? (
+            <List.Item.Detail markdown={highlightMarkdown(launcher.title, launcherResult.titleRanges)} />
+          ) : undefined
+        }
+        actions={
+          <ActionPanel>
+            <Action
+              title={launcher.title}
+              icon={Icon.Rocket}
+              onAction={async () => {
+                try {
+                  await launcher.run();
+                  await closeMainWindow();
+                } catch (e) {
+                  await showToast({ style: Toast.Style.Failure, title: "Failed to launch", message: String(e) });
+                }
+              }}
+            />
+          </ActionPanel>
+        }
+      />
+    ) : null;
+
+  const tabItems = ranked.map(({ item: t, result }) => {
+    const subtitle = t.url || "";
+    const hostname = computeHostname(subtitle);
+    const displayTitle = t.title || subtitle || "Untitled";
+    const searchableTitle =
+      hostname && !displayTitle.includes(hostname) ? `${displayTitle} - ${hostname}` : displayTitle;
+
+    return (
+      <List.Item
+        key={tabKey(t)}
+        title={searchableTitle}
+        subtitle={subtitle}
+        accessories={[{ tag: { value: t.browser, color: browserColor(t.browser) } }]}
+        icon={iconForBrowser(t.browser)}
+        detail={
+          isSearching ? (
+            <List.Item.Detail
+              markdown={`${highlightMarkdown(displayTitle, result.titleRanges)}\n\n${highlightMarkdown(subtitle, result.urlRanges)}`}
+            />
+          ) : undefined
+        }
+        actions={
+          <ActionPanel>
+            <Action
+              title="Switch to This Tab"
+              icon={Icon.Switch}
+              onAction={async () => {
+                try {
+                  // Switch first, close the Raycast window last: Raycast can tear this
+                  // process down shortly after closeMainWindow() resolves, so anything
+                  // placed after it risks never running.
+                  await focusAndSwitchToTab(t);
+                  await closeMainWindow();
+                } catch (e) {
+                  await showToast({ style: Toast.Style.Failure, title: "Failed to switch", message: String(e) });
+                }
+              }}
+            />
+            <Action title="Refresh Tabs" icon={Icon.Repeat} onAction={loadTabs} />
+          </ActionPanel>
+        }
+      />
+    );
+  });
+
+  if (launcherItem) tabItems.splice(launcherIndex, 0, launcherItem);
+
   return (
     <List
       isLoading={isLoading}
+      filtering={false}
+      onSearchTextChange={setSearchText}
+      isShowingDetail={isSearching}
       searchBarPlaceholder={`Search tabs across ${scope}…`}
     >
       <List.EmptyView title={isLoading ? "Loading tabs…" : `No ${scope} tabs found`} />
-      {launcher && (
-        <List.Item
-          key="launcher"
-          title={launcher.title}
-          icon={Icon.Rocket}
-          actions={
-            <ActionPanel>
-              <Action
-                title={launcher.title}
-                icon={Icon.Rocket}
-                onAction={async () => {
-                  try {
-                    await launcher.run();
-                    await closeMainWindow();
-                  } catch (e) {
-                    await showToast({ style: Toast.Style.Failure, title: "Failed to launch", message: String(e) });
-                  }
-                }}
-              />
-            </ActionPanel>
-          }
-        />
-      )}
-      {tabs?.map((t) => {
-        const subtitle = t.url || "";
-        const hostname = computeHostname(subtitle);
-
-        const keywords: string[] = [];
-        if (subtitle) {
-          keywords.push(subtitle);
-          if (hostname) keywords.push(hostname);
-          try {
-            const url = new URL(subtitle);
-            const pathSegments = url.pathname.split("/").filter((s) => s.length > 0);
-            keywords.push(...pathSegments);
-          } catch {
-            // skip
-          }
-        }
-
-        const displayTitle = t.title || subtitle || "Untitled";
-        const searchableTitle =
-          hostname && !displayTitle.includes(hostname) ? `${displayTitle} - ${hostname}` : displayTitle;
-
-        return (
-          <List.Item
-            key={tabKey(t)}
-            title={searchableTitle}
-            subtitle={subtitle}
-            keywords={keywords}
-            accessories={[{ tag: { value: t.browser, color: browserColor(t.browser) } }]}
-            icon={iconForBrowser(t.browser)}
-            actions={
-              <ActionPanel>
-                <Action
-                  title="Switch to This Tab"
-                  icon={Icon.Switch}
-                  onAction={async () => {
-                    try {
-                      // Switch first, close the Raycast window last: Raycast can tear this
-                      // process down shortly after closeMainWindow() resolves, so anything
-                      // placed after it risks never running.
-                      await focusAndSwitchToTab(t);
-                      await closeMainWindow();
-                    } catch (e) {
-                      await showToast({ style: Toast.Style.Failure, title: "Failed to switch", message: String(e) });
-                    }
-                  }}
-                />
-                <Action title="Refresh Tabs" icon={Icon.Repeat} onAction={loadTabs} />
-              </ActionPanel>
-            }
-          />
-        );
-      })}
+      {tabItems}
     </List>
   );
 }

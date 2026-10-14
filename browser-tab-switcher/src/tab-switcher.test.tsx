@@ -157,20 +157,70 @@ describe("<TabSwitcher /> rendering", () => {
   const items = (root: TestRenderer.ReactTestInstance) =>
     root.findAll((n) => (n.type as { displayName?: string }).displayName === "List.Item");
 
-  // Regression: passing onSearchTextChange without `filtering` makes Raycast stop filtering,
-  // so typing in the search bar no longer narrowed the tab list.
-  it("keeps Raycast's built-in search filtering enabled", async () => {
-    const props = listOf(await render()).props;
-    if (props.onSearchTextChange !== undefined) expect(props.filtering).toBe(true);
-    expect(props.filtering).not.toBe(false);
+  async function type(root: TestRenderer.ReactTestInstance, text: string) {
+    await act(async () => {
+      listOf(root).props.onSearchTextChange(text);
+    });
+  }
+
+  // Regression: an earlier change passed onSearchTextChange without handling filtering, so typing
+  // stopped narrowing the list. We now filter ourselves, so assert on the observable behaviour.
+  it("narrows the list as the user types", async () => {
+    const root = await render();
+    expect(listOf(root).props.filtering).toBe(false);
+    await type(root, "chrome");
+    expect(items(root).map((i) => i.props.title)).toEqual([expect.stringContaining("Chrome Tab")]);
+    await type(root, "");
+    expect(items(root)).toHaveLength(2);
   });
 
-  it("renders one item per tab with browser tag and URL-derived keywords", async () => {
+  it("ranks a literal match above tabs that only match as scattered letters", async () => {
+    state.cdp = {
+      9223: [
+        { id: "a", title: "Notifications digest", url: "https://mail.example/inbox", type: "page" },
+        { id: "b", title: "Home", url: "https://www.notion.so/home", type: "page" },
+        { id: "c", title: "Unrelated", url: "https://example.com", type: "page" },
+      ],
+    };
+    const root = await render({ browsers: ["Microsoft Edge"] });
+    await type(root, "notion");
+    expect(items(root).map((i) => i.props.title)).toEqual([
+      expect.stringContaining("Home"),
+      expect.stringContaining("Notifications digest"),
+    ]);
+  });
+
+  it("shows a detail pane with the matched characters highlighted only while searching", async () => {
+    state.cdp = { 9223: [{ id: "b", title: "Home", url: "https://www.notion.so/home", type: "page" }] };
+    const root = await render({ browsers: ["Microsoft Edge"] });
+    expect(listOf(root).props.isShowingDetail).toBe(false);
+
+    await type(root, "notion");
+    expect(listOf(root).props.isShowingDetail).toBe(true);
+    expect(items(root)[0].props.detail.props.markdown).toContain("https://www\\.`notion`\\.so/home");
+  });
+
+  it("filters the launcher item by its title like any other item", async () => {
+    const launcher = { title: "Launch Edge", run: vi.fn(async () => {}) };
+    const root = await render({ browsers: ["Microsoft Edge"], launcher });
+    await type(root, "launch");
+    expect(items(root).map((i) => i.props.title)).toEqual(["Launch Edge"]);
+    await type(root, "edge tab");
+    expect(items(root).map((i) => i.props.title)).toEqual([expect.stringContaining("Edge Tab")]);
+  });
+
+  it("gives the launcher a detail pane while searching so the right pane is never blank", async () => {
+    const launcher = { title: "Launch Edge", run: vi.fn(async () => {}) };
+    const root = await render({ browsers: ["Microsoft Edge"], launcher });
+    await type(root, "launch");
+    expect(items(root)[0].props.detail.props.markdown).toContain("Launch");
+  });
+
+  it("renders one item per tab with the browser tag", async () => {
     const root = await render();
     const rendered = items(root);
     expect(rendered).toHaveLength(2);
     const edge = rendered.find((i) => i.props.title.startsWith("Edge Tab"))!;
-    expect(edge.props.keywords).toEqual(expect.arrayContaining(["https://edge.example/a", "edge.example", "a"]));
     expect(edge.props.accessories[0].tag.value).toBe("Microsoft Edge");
   });
 
