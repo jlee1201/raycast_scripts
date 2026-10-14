@@ -209,6 +209,13 @@ describe("<TabSwitcher /> rendering", () => {
     expect(items(root).map((i) => i.props.title)).toEqual([expect.stringContaining("Edge Tab")]);
   });
 
+  it("gives the launcher a detail pane while searching so the right pane is never blank", async () => {
+    const launcher = { title: "Launch Edge", run: vi.fn(async () => {}) };
+    const root = await render({ browsers: ["Microsoft Edge"], launcher });
+    await type(root, "launch");
+    expect(items(root)[0].props.detail.props.markdown).toContain("Launch");
+  });
+
   it("renders one item per tab with the browser tag", async () => {
     const root = await render();
     const rendered = items(root);

@@ -36,6 +36,12 @@ describe("searchItem", () => {
     expect(wordStart.score).toBeGreaterThan(midWord.score);
   });
 
+  it("treats non-ASCII letters as part of a word when judging word starts", () => {
+    const afterSpace = searchItem("note", "Café note", "")!;
+    const afterLetter = searchItem("note", "Cafénote", "")!;
+    expect(afterSpace.score).toBeGreaterThan(afterLetter.score);
+  });
+
   it("falls back to fuzzy matching and highlights the tightest in-order characters", () => {
     const r = searchItem("notion", "Notifications", "")!;
     expect(r.titleRanges).toEqual([

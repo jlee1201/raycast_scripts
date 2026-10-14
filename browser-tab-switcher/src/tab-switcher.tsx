@@ -371,6 +371,11 @@ export default function TabSwitcher({ browsers, launcher }: { browsers?: Browser
         key="launcher"
         title={launcher.title}
         icon={Icon.Rocket}
+        detail={
+          isSearching ? (
+            <List.Item.Detail markdown={highlightMarkdown(launcher.title, launcherResult.titleRanges)} />
+          ) : undefined
+        }
         actions={
           <ActionPanel>
             <Action

@@ -21,7 +21,7 @@ function fold(s: string): string {
 }
 
 function isWordStart(text: string, i: number): boolean {
-  return i === 0 || !/[a-z0-9]/i.test(text[i - 1]);
+  return i === 0 || !/[\p{L}\p{N}]/u.test(text[i - 1]);
 }
 
 function mergeAdjacent(indices: number[]): Range[] {
