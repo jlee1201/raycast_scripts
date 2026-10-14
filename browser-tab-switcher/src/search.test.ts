@@ -114,6 +114,14 @@ describe("highlightMarkdown", () => {
     expect(md).not.toMatch(/www\\?\./i);
   });
 
+  it("defuses auto-linking inside matched text when the match covers the scheme or www", () => {
+    const full = highlightMarkdown("https://github.com/foo", [[0, 18]]);
+    expect(full).not.toContain("://");
+    expect(full.startsWith("`https")).toBe(true);
+    const www = highlightMarkdown("www.notion.so", [[0, 10]]);
+    expect(www).not.toMatch(/www\./i);
+  });
+
   it("defuses auto-linking in unhighlighted text too", () => {
     const md = highlightMarkdown("see https://a.example and www.b.example", []);
     expect(md).not.toContain("://");
