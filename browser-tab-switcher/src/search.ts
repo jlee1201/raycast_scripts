@@ -134,12 +134,16 @@ export function rankItems<T>(
 const MARKDOWN_SPECIALS = /[\\`*_{}[\]()#+\-.!<>|~&]/g;
 
 export function highlightMarkdown(text: string, ranges: Range[]): string {
-  const escape = (s: string) => s.replace(MARKDOWN_SPECIALS, "\\$&");
+  // Raycast auto-links URL-shaped text and then prints our markup literally inside the link.
+  // A zero-width space after the scheme separator and after "www" keeps it from linking.
+  const defuseLinks = (s: string) => s.replace(/:\/\//g, ":/\u200B/").replace(/www(?=\.)/gi, "$&\u200B");
+  const escape = (s: string) => defuseLinks(s).replace(MARKDOWN_SPECIALS, "\\$&");
+  const code = (s: string) => "`" + defuseLinks(s).replace(/`/g, "'") + "`";
   let out = "";
   let pos = 0;
   for (const [s, e] of ranges) {
     out += escape(text.slice(pos, s));
-    out += "`" + text.slice(s, e).replace(/`/g, "'") + "`";
+    out += code(text.slice(s, e));
     pos = e;
   }
   return out + escape(text.slice(pos));
