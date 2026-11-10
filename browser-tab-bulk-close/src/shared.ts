@@ -161,21 +161,32 @@ JSON.stringify(all);
 // Orchestration
 // ---------------------------------------------------------------------------
 
+function dedupeKey(t: BrowserTab): string {
+  return `${t.browser}\0${canonicalUrl(t.url)}\0${normalizeTitle(t.title)}`;
+}
+
 export async function listAllTabs(): Promise<BrowserTab[]> {
   const all: BrowserTab[] = [];
 
   const chromiumInstances = await discoverChromiumInstances();
-  const browsersWithCDP = new Set(chromiumInstances.map((i) => i.browser));
 
   const cdpResults = await Promise.all(chromiumInstances.map(listTabsCDP));
   for (const tabs of cdpResults) all.push(...tabs);
 
-  const jxaBrowsers: BrowserName[] = ["Safari"];
-  for (const b of CHROMIUM_BROWSERS) {
-    if (!browsersWithCDP.has(b)) jxaBrowsers.push(b);
-  }
+  // Always also check AppleScript/JXA, even for browsers with a CDP instance:
+  // a browser can have windows running outside the CDP-flagged instance (e.g.
+  // a different profile, or a window launched without --remote-debugging-port),
+  // and those tabs would otherwise be invisible. Dedupe against CDP results.
+  const jxaBrowsers: BrowserName[] = ["Safari", ...CHROMIUM_BROWSERS];
   const jxaTabs = await listTabsJXA(jxaBrowsers);
-  all.push(...jxaTabs);
+
+  const seen = new Set(all.map(dedupeKey));
+  for (const t of jxaTabs) {
+    const key = dedupeKey(t);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    all.push(t);
+  }
 
   return all;
 }
