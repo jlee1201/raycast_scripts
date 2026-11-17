@@ -1,4 +1,4 @@
-import { Action, ActionPanel, closeMainWindow, Color, Icon, List, Toast, showToast } from "@raycast/api";
+import { Action, ActionPanel, closeMainWindow, Color, Icon, List, PopToRootType, Toast, showToast } from "@raycast/api";
 import { useEffect, useMemo, useState } from "react";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
@@ -384,7 +384,7 @@ export default function TabSwitcher({ browsers, launcher }: { browsers?: Browser
               onAction={async () => {
                 try {
                   await launcher.run();
-                  await closeMainWindow();
+                  await closeMainWindow({ popToRootType: PopToRootType.Immediate });
                 } catch (e) {
                   await showToast({ style: Toast.Style.Failure, title: "Failed to launch", message: String(e) });
                 }
@@ -427,7 +427,8 @@ export default function TabSwitcher({ browsers, launcher }: { browsers?: Browser
                   // process down shortly after closeMainWindow() resolves, so anything
                   // placed after it risks never running.
                   await focusAndSwitchToTab(t);
-                  await closeMainWindow();
+                  // Immediate: otherwise Raycast reopens on this command's search text next time.
+                  await closeMainWindow({ popToRootType: PopToRootType.Immediate });
                 } catch (e) {
                   await showToast({ style: Toast.Style.Failure, title: "Failed to switch", message: String(e) });
                 }

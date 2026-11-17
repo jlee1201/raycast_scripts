@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { vi } from "vitest";
 
 const passthrough = (name: string) => {
   const C = (props: { children?: ReactNode }) => <>{props.children}</>;
@@ -16,4 +17,5 @@ export const Icon = new Proxy({}, { get: (_t, k) => String(k) });
 export const Color = new Proxy({}, { get: (_t, k) => String(k) });
 export const Toast = { Style: { Failure: "failure" } };
 export const showToast = async () => undefined;
-export const closeMainWindow = async () => undefined;
+export const closeMainWindow = vi.fn(async (_options?: unknown) => undefined);
+export const PopToRootType = { Immediate: "immediate", Default: "default", Suspended: "suspended" };

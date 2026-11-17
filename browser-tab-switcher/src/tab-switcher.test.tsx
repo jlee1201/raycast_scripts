@@ -2,6 +2,7 @@ import { EventEmitter } from "node:events";
 import React from "react";
 import TestRenderer, { act } from "react-test-renderer";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { closeMainWindow } from "@raycast/api";
 
 const state = vi.hoisted(() => ({
   execCalls: [] as { cmd: string; args: string[] }[],
@@ -237,5 +238,32 @@ describe("<TabSwitcher /> rendering", () => {
     expect(items(withLauncher)[0].props.title).toBe("Launch Edge");
     const without = await render({ browsers: ["Microsoft Edge"] });
     expect(items(without).some((i) => i.props.title === "Launch Edge")).toBe(false);
+  });
+
+  // Regression: closeMainWindow() with no options left Raycast parked on this command, so the next
+  // activation resumed the tab search instead of starting at the root.
+  it("closes Raycast and pops to root after switching to a tab", async () => {
+    vi.mocked(closeMainWindow).mockClear();
+    const root = await render({ browsers: ["Microsoft Edge"] });
+    const tabItem = items(root).find((i) => i.props.title.startsWith("Edge Tab"))!;
+    const actions = tabItem.props.actions as React.ReactElement;
+    const action = React.Children.toArray((actions.props as { children: React.ReactNode }).children)[0] as React.ReactElement;
+    await act(async () => {
+      await (action.props as { onAction: () => Promise<void> }).onAction();
+    });
+    expect(closeMainWindow).toHaveBeenCalledWith({ popToRootType: "immediate" });
+  });
+
+  it("closes Raycast and pops to root after running the launcher", async () => {
+    vi.mocked(closeMainWindow).mockClear();
+    const run = vi.fn(async () => {});
+    const root = await render({ browsers: ["Microsoft Edge"], launcher: { title: "Launch Edge", run } });
+    const actions = items(root)[0].props.actions as React.ReactElement;
+    const action = React.Children.toArray((actions.props as { children: React.ReactNode }).children)[0] as React.ReactElement;
+    await act(async () => {
+      await (action.props as { onAction: () => Promise<void> }).onAction();
+    });
+    expect(run).toHaveBeenCalled();
+    expect(closeMainWindow).toHaveBeenCalledWith({ popToRootType: "immediate" });
   });
 });
